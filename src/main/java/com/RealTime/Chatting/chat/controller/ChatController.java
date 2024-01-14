@@ -3,15 +3,12 @@ package com.RealTime.Chatting.chat.controller;
 import com.RealTime.Chatting.chat.model.MessageType;
 import com.RealTime.Chatting.chat.model.dto.Message;
 import com.RealTime.Chatting.chat.model.dto.request.RequestChatDto;
-import com.RealTime.Chatting.chat.model.dto.response.ResponseChatDto;
 import com.RealTime.Chatting.chat.service.ChatService;
 import com.RealTime.Chatting.chat.service.MessageSender;
-import com.RealTime.Chatting.global.auth.jwt.AppAuthentication;
 import com.RealTime.Chatting.global.auth.role.UserAuth;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -23,7 +20,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Tag(name = "채팅", description = "채팅 송/수신 관련 api")
@@ -61,16 +57,14 @@ public class ChatController {
         headerAccessor.getSessionAttributes().put("username", username);
         headerAccessor.getSessionAttributes().put("roomId", chat.getRoomId());
 
-        ResponseChatDto responseChatDto = ResponseChatDto.builder()
+        Message message = Message.builder()
                 .type(chat.getType())
                 .roomId(chat.getRoomId())
                 .sender(chat.getSender())
-                .message(chat.getMessage())
+                .message(chat.getSender() + " 님 입장!!")
                 .build();
-        responseChatDto.changeMessage(responseChatDto.getSender() + " 님 입장!!");
 
-//        template.convertAndSend("/sub/chatRoom/enter" + responseChatDto.getRoomId(), responseChatDto);
-        sender.send(topic, responseChatDto);
+        sender.send(topic, message);
     }
 
     // 해당 유저
@@ -78,17 +72,14 @@ public class ChatController {
     public void sendMessage(@Payload RequestChatDto chat) {
         log.info("CHAT {}", chat);
 
-        ResponseChatDto responseChatDto = ResponseChatDto.builder()
+        Message message = Message.builder()
                 .type(chat.getType())
                 .roomId(chat.getRoomId())
                 .sender(chat.getSender())
                 .message(chat.getMessage())
                 .build();
-        responseChatDto.changeMessage(responseChatDto.getMessage());
 
-
-//        template.convertAndSend("/sub/chatRoom/enter" + responseChatDto.getRoomId(), responseChatDto);
-        sender.send(topic, responseChatDto);
+        sender.send(topic, message);
     }
 
     // 유저 퇴장 시에는 EventListener 을 통해서 유저 퇴장을 확인
@@ -116,19 +107,13 @@ public class ChatController {
             log.info("User Disconnected : ", username);
 
             // builder 어노테이션 활용
-            ResponseChatDto responseChatDto = ResponseChatDto.builder()
+            Message message = Message.builder()
                     .type(MessageType.LEAVE)
                     .sender(username)
                     .message(username + " 님 퇴장!!")
                     .build();
-//            Message chat = Message.builder()
-//                    .type(MessageType.LEAVE)
-//                    .sender(username)
-//                    .message(username + " 님 퇴장!!")
-//                    .build();
 
-//            template.convertAndSend("/sub/chatRoom/enter" + roomId, responseChatDto);
-            sender.send(topic, responseChatDto);
+            sender.send(topic, message);
         }
     }
 
