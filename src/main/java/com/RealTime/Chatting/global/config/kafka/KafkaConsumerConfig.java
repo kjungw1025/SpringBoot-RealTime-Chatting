@@ -1,8 +1,8 @@
 package com.RealTime.Chatting.global.config.kafka;
 
-import com.RealTime.Chatting.chat.model.dto.request.RequestChatDto;
-import com.RealTime.Chatting.chat.model.dto.response.ResponseChatDto;
+import com.RealTime.Chatting.chat.model.dto.Message;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +12,11 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.KafkaMessageListenerContainer;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +24,7 @@ import java.util.Map;
 @EnableKafka
 @Configuration
 @RequiredArgsConstructor
+@Slf4j
 public class KafkaConsumerConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
@@ -33,9 +38,10 @@ public class KafkaConsumerConfig {
 
     // KafkaListener 컨테이너 펙토리를 생성하는 Bean 메서드
     @Bean
-    ConcurrentKafkaListenerContainerFactory<String, RequestChatDto> kafkaConsumerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, RequestChatDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    ConcurrentKafkaListenerContainerFactory<String, String> kafkaConsumerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        factory.setCommonErrorHandler(customErrorHandler());
         return factory;
     }
 
@@ -45,18 +51,27 @@ public class KafkaConsumerConfig {
         // earliest : 가장 처음 offset부터
         // none : 해당 consumer group이 가져가고자 하는 topic의 consumer offset정보가 없으면 exception을 발생시킴.
     @Bean
-    public ConsumerFactory<String, RequestChatDto> consumerFactory() {
-        JsonDeserializer<RequestChatDto> deserializer = new JsonDeserializer<>();
-        // 패키지 신뢰 오류로 인해 모든 패키지를 신뢰하도록 설정
-        deserializer.addTrustedPackages("*");
-
+    public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> consumerConfig = new HashMap<>();
         consumerConfig.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, topic);
         consumerConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, offset);
-        consumerConfig.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, deserializer);
+        consumerConfig.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        consumerConfig.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
+        consumerConfig.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, StringDeserializer.class);
 
-        return new DefaultKafkaConsumerFactory<>(consumerConfig, new StringDeserializer(), deserializer);
+        return new DefaultKafkaConsumerFactory<>(consumerConfig, new StringDeserializer(), new StringDeserializer());
+    }
+
+    private DefaultErrorHandler customErrorHandler() {
+
+        return new DefaultErrorHandler((consumerRecord, e) -> {
+            log.error("[Error] topic = {}, key = {}, value = {}, error message = {}",
+                    consumerRecord.topic(),
+                    consumerRecord.key(),
+                    consumerRecord.value(),
+                    e.getMessage());
+        }, new FixedBackOff(1000L, 10));
     }
 }
