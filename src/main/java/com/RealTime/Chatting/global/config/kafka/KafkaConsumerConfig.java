@@ -1,9 +1,11 @@
 package com.RealTime.Chatting.global.config.kafka;
 
-import com.RealTime.Chatting.chat.model.dto.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.security.plain.PlainLoginModule;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,9 +15,7 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.DefaultErrorHandler;
-import org.springframework.kafka.listener.KafkaMessageListenerContainer;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
@@ -29,6 +29,12 @@ public class KafkaConsumerConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    @Value("${spring.kafka.jaas.username}")
+    private String username;
+
+    @Value("${spring.kafka.jaas.password}")
+    private String password;
 
     @Value("${spring.kafka.consumer.topic}")
     private String topic;
@@ -60,6 +66,12 @@ public class KafkaConsumerConfig {
         consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         consumerConfig.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
         consumerConfig.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, StringDeserializer.class);
+
+        consumerConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
+        consumerConfig.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+        consumerConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format(
+                "%s required username=\"%s\" " + "password=\"%s\";", PlainLoginModule.class.getName(), username, password
+        ));
 
         return new DefaultKafkaConsumerFactory<>(consumerConfig, new StringDeserializer(), new StringDeserializer());
     }
