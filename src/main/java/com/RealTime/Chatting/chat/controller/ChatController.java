@@ -109,6 +109,7 @@ public class ChatController {
             ResponseChatDto chat = ResponseChatDto.builder()
                     .type(MessageType.LEAVE)
                     .sender(username)
+                    .roomId(roomId)
                     .message(username + " 님 퇴장!!")
                     .build();
 
