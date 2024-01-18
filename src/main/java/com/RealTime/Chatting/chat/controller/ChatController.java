@@ -110,6 +110,7 @@ public class ChatController {
             Message message = Message.builder()
                     .type(MessageType.LEAVE)
                     .sender(username)
+                    .roomId(roomId)
                     .message(username + " 님 퇴장!!")
                     .build();
 
